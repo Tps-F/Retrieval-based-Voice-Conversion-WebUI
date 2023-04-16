@@ -16,7 +16,7 @@ os.makedirs(os.path.join(now_dir, "weights"), exist_ok=True)
 os.environ["TEMP"] = tmp
 warnings.filterwarnings("ignore")
 torch.manual_seed(114514)
-from webui_locale import I18nAuto
+from i18n import I18nAuto
 
 i18n = I18nAuto()
 # 判断是否有能用来训练和加速推理的N卡
@@ -36,6 +36,10 @@ else:
             or "20" in gpu_name
             or "30" in gpu_name
             or "40" in gpu_name
+            or "A2" in gpu_name.upper()
+            or "A3" in gpu_name.upper()
+            or "A4" in gpu_name.upper()
+            or "P4" in gpu_name.upper()
             or "A50" in gpu_name.upper()
             or "70" in gpu_name
             or "80" in gpu_name

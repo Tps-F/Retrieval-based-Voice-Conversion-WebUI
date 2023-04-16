@@ -1,13 +1,15 @@
 import json
+import os
 from collections import OrderedDict
 
 # Define the standard file name
 standard_file = "zh_CN.json"
 
-# Define the list of supported languages
-# zh_HK.json and zh_SG.json is not included in the list
-# because they are symbolinks to zh_TW.json
-languages = ["zh_TW.json", "ja_JP.json", "en_US.json"]
+# Find all JSON files in the directory
+dir_path = "./"
+languages = [
+    f for f in os.listdir(dir_path) if f.endswith(".json") and f != standard_file
+]
 
 # Load the standard file
 with open(standard_file, "r", encoding="utf-8") as f:
