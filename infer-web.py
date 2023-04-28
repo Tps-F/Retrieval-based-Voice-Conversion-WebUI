@@ -62,21 +62,16 @@ from fairseq import checkpoint_utils
 import gradio as gr
 import logging
 from vc_infer_pipeline import VC
-from config import (
-    is_half,
-    device,
-    python_cmd,
-    listen_port,
-    iscolab,
-    noparallel,
-    noautoopen,
-)
+from config import Config
 from infer_uvr5 import _audio_pre_
 from my_utils import load_audio
 from train.process_ckpt import show_info, change_info, merge, extract_small_model
 
 # from trainset_preprocess_pipeline import PreProcess
 logging.getLogger("numba").setLevel(logging.WARNING)
+
+config = Config()
+print(config.device)
 
 
 class ToolButton(gr.Button, gr.components.FormComponent):
@@ -99,8 +94,8 @@ def load_hubert():
         suffix="",
     )
     hubert_model = models[0]
-    hubert_model = hubert_model.to(device)
-    if is_half:
+    hubert_model = hubert_model.to(config.device)
+    if config.is_half:
         hubert_model = hubert_model.half()
     else:
         hubert_model = hubert_model.float()
@@ -238,8 +233,8 @@ def uvr(model_name, inp_root, save_root_vocal, paths, save_root_ins):
         )
         pre_fun = _audio_pre_(
             model_path=os.path.join(weight_uvr5_root, model_name + ".pth"),
-            device=device,
-            is_half=is_half,
+            device=config.device,
+            is_half=config.is_half,
         )
         if inp_root != "":
             paths = [os.path.join(inp_root, name) for name in os.listdir(inp_root)]
@@ -285,7 +280,9 @@ def get_vc(sid):
             ###楼下不这么折腾清理不干净
             if_f0 = cpt.get("f0", 1)
             if if_f0 == 1:
-                net_g = SynthesizerTrnMs256NSFsid(*cpt["config"], is_half=is_half)
+                net_g = SynthesizerTrnMs256NSFsid(
+                    *cpt["config"], is_half=config.is_half
+                )
             else:
                 net_g = SynthesizerTrnMs256NSFsid_nono(*cpt["config"])
             del net_g, cpt
@@ -300,17 +297,17 @@ def get_vc(sid):
     cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]  # n_spk
     if_f0 = cpt.get("f0", 1)
     if if_f0 == 1:
-        net_g = SynthesizerTrnMs256NSFsid(*cpt["config"], is_half=is_half)
+        net_g = SynthesizerTrnMs256NSFsid(*cpt["config"], is_half=config.is_half)
     else:
         net_g = SynthesizerTrnMs256NSFsid_nono(*cpt["config"])
     del net_g.enc_q
     print(net_g.load_state_dict(cpt["weight"], strict=False))  # 不加这一行清不干净, 真奇葩
-    net_g.eval().to(device)
-    if is_half:
+    net_g.eval().to(config.device)
+    if config.is_half:
         net_g = net_g.half()
     else:
         net_g = net_g.float()
-    vc = VC(tgt_sr, device, is_half)
+    vc = VC(tgt_sr, config)
     n_spk = cpt["config"][-3]
     return {"visible": True, "maximum": n_spk, "__type__": "update"}
 
@@ -380,10 +377,10 @@ def preprocess_dataset(trainset_dir, exp_dir, sr, n_p=ncpu):
     f = open("%s/logs/%s/preprocess.log" % (now_dir, exp_dir), "w")
     f.close()
     cmd = (
-        python_cmd
+        config.python_cmd
         + " trainset_preprocess_pipeline_print.py %s %s %s %s/logs/%s "
         % (trainset_dir, sr, n_p, now_dir, exp_dir)
-        + str(noparallel)
+        + str(config.noparallel)
     )
     print(cmd)
     p = Popen(cmd, shell=True)  # , stdin=PIPE, stdout=PIPE,stderr=PIPE,cwd=now_dir
@@ -415,7 +412,7 @@ def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir):
     f = open("%s/logs/%s/extract_f0_feature.log" % (now_dir, exp_dir), "w")
     f.close()
     if if_f0 == "是":
-        cmd = python_cmd + " extract_f0_print.py %s/logs/%s %s %s" % (
+        cmd = config.python_cmd + " extract_f0_print.py %s/logs/%s %s %s" % (
             now_dir,
             exp_dir,
             n_p,
@@ -455,8 +452,8 @@ def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir):
     leng = len(gpus)
     ps = []
     for idx, n_g in enumerate(gpus):
-        cmd = python_cmd + " extract_feature_print.py %s %s %s %s %s/logs/%s" % (
-            device,
+        cmd = config.python_cmd + " extract_feature_print.py %s %s %s %s %s/logs/%s" % (
+            config.device,
             leng,
             idx,
             n_g,
@@ -575,7 +572,7 @@ def click_train(
     print("use gpus:", gpus16)
     if gpus16:
         cmd = (
-            python_cmd
+            config.python_cmd
             + " train_nsf_sim_cache_sid_load_pretrain.py -e %s -sr %s -f0 %s -bs %s -g %s -te %s -se %s -pg %s -pd %s -l %s -c %s"
             % (
                 exp_dir1,
@@ -593,7 +590,7 @@ def click_train(
         )
     else:
         cmd = (
-            python_cmd
+            config.python_cmd
             + " train_nsf_sim_cache_sid_load_pretrain.py -e %s -sr %s -f0 %s -bs %s -te %s -se %s -pg %s -pd %s -l %s -c %s"
             % (
                 exp_dir1,
@@ -684,10 +681,10 @@ def train1key(
     #########step1:处理数据
     open("%s/logs/%s/preprocess.log" % (now_dir, exp_dir1), "w").close()
     cmd = (
-        python_cmd
+        config.python_cmd
         + " trainset_preprocess_pipeline_print.py %s %s %s %s/logs/%s "
         % (trainset_dir4, sr_dict[sr2], ncpu, now_dir, exp_dir1)
-        + str(noparallel)
+        + str(config.noparallel)
     )
     yield get_info_str("step1:正在处理数据")
     yield get_info_str(cmd)
@@ -699,7 +696,7 @@ def train1key(
     open("%s/logs/%s/extract_f0_feature.log" % (now_dir, exp_dir1), "w")
     if if_f0_3 == "是":
         yield get_info_str("step2a:正在提取音高")
-        cmd = python_cmd + " extract_f0_print.py %s/logs/%s %s %s" % (
+        cmd = config.python_cmd + " extract_f0_print.py %s/logs/%s %s %s" % (
             now_dir,
             exp_dir1,
             np7,
@@ -718,8 +715,8 @@ def train1key(
     leng = len(gpus)
     ps = []
     for idx, n_g in enumerate(gpus):
-        cmd = python_cmd + " extract_feature_print.py %s %s %s %s %s/logs/%s" % (
-            device,
+        cmd = config.python_cmd + " extract_feature_print.py %s %s %s %s %s/logs/%s" % (
+            config.device,
             leng,
             idx,
             n_g,
@@ -797,7 +794,7 @@ def train1key(
     yield get_info_str("write filelist done")
     if gpus16:
         cmd = (
-            python_cmd
+            config.python_cmd
             + " train_nsf_sim_cache_sid_load_pretrain.py -e %s -sr %s -f0 %s -bs %s -g %s -te %s -se %s -pg %s -pd %s -l %s -c %s"
             % (
                 exp_dir1,
@@ -815,7 +812,7 @@ def train1key(
         )
     else:
         cmd = (
-            python_cmd
+            config.python_cmd
             + " train_nsf_sim_cache_sid_load_pretrain.py -e %s -sr %s -f0 %s -bs %s -te %s -se %s -pg %s -pd %s -l %s -c %s"
             % (
                 exp_dir1,
@@ -1464,12 +1461,12 @@ with gr.Blocks() as app:
         # with gr.TabItem(i18n("点击查看交流、问题反馈群号")):
         #     gr.Markdown(value=i18n("xxxxx"))
 
-    if iscolab:
+    if config.iscolab:
         app.queue(concurrency_count=511, max_size=1022).launch(share=True)
     else:
         app.queue(concurrency_count=511, max_size=1022).launch(
             server_name="0.0.0.0",
-            inbrowser=not noautoopen,
-            server_port=listen_port,
+            inbrowser=not config.noautoopen,
+            server_port=config.listen_port,
             quiet=True,
         )
