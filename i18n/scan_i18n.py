@@ -50,7 +50,7 @@ print("Total unique:", len(code_keys))
 
 
 standard_file = "i18n/locale/zh_CN.json"
-with open(f"i18n/locale/{standard_file}", "r", encoding="utf-8") as f:
+with open(f"{standard_file}", "r", encoding="utf-8") as f:
     standard_data = json.load(f, object_pairs_hook=OrderedDict)
 standard_keys = set(standard_data.keys())
 
