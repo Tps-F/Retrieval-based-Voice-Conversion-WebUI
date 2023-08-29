@@ -1,8 +1,7 @@
 name: genlocale
 on:
   push:
-    branches:
-      - main
+
 jobs:
   genlocale:
     name: genlocale
